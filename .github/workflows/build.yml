@@ -1,0 +1,36 @@
+name: Build hf-replay
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: unzip source
+        shell: pwsh
+        run: |
+          $z = Get-ChildItem -Filter *.zip | Select-Object -First 1
+          Expand-Archive -Path $z.FullName -DestinationPath project -Force
+      - name: install xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+      - name: build
+        shell: pwsh
+        run: |
+          cd project
+          xmake f -m release -y
+          xmake -y
+      - name: pack
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist -Force
+          Copy-Item project/manifest.json dist/
+          $dll = Get-ChildItem -Path project/build -Recurse -Filter hf-replay.dll | Select-Object -First 1
+          if (-not $dll) { Write-Error "dll not found"; exit 1 }
+          Copy-Item $dll.FullName dist/
+          Compress-Archive -Path dist -DestinationPath hf-replay-win-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hf-replay-win-x64
+          path: hf-replay-win-x64.zip
